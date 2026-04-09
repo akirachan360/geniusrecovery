@@ -821,13 +821,164 @@ export default function Dashboard() {
 
   const toggleCollapse = (section) => setCollapsed(prev => ({ ...prev, [section]: !prev[section] }))
   
-  const exportData = () => {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `genius-recovery-${new Date().toISOString().split('T')[0]}.json`
-    a.click()
+  const exportPDF = () => {
+    const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+    const pendingTasksList = data.tasks.filter(t => t.status !== 'completed').sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
+    const overdueTasksList = pendingTasksList.filter(t => new Date(t.due_date) < new Date())
+    const activeGrantsList = data.grants.filter(g => g.status !== 'submitted' && g.status !== 'declined')
+    const upcomingEventsList = data.events.filter(e => new Date(e.start_date) >= new Date()).slice(0, 5)
+    const activePartners = data.partners.filter(p => p.status === 'active' || p.status === 'outreach')
+    const activeContentList = data.content.filter(c => c.status !== 'published')
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Genius Recovery - Executive Summary</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1e293b; line-height: 1.5; padding: 40px; max-width: 800px; margin: 0 auto; }
+          .header { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; padding-bottom: 16px; border-bottom: 3px solid #ea580c; }
+          .logo { width: 50px; height: 50px; background: linear-gradient(135deg, #ea580c, #dc2626); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 24px; }
+          .header-text h1 { font-size: 24px; color: #0f172a; }
+          .header-text p { font-size: 12px; color: #64748b; }
+          .date { font-size: 12px; color: #64748b; margin-bottom: 24px; }
+          .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 32px; }
+          .stat { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; }
+          .stat-value { font-size: 24px; font-weight: 700; color: #ea580c; }
+          .stat-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+          .section { margin-bottom: 28px; }
+          .section-title { font-size: 14px; font-weight: 700; color: #ea580c; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid #fed7aa; }
+          .item { padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+          .item:last-child { border-bottom: none; }
+          .item-title { font-weight: 600; color: #0f172a; font-size: 13px; }
+          .item-meta { font-size: 11px; color: #64748b; margin-top: 2px; }
+          .item-meta span { margin-right: 12px; }
+          .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+          .badge-high { background: #fee2e2; color: #dc2626; }
+          .badge-medium { background: #fef3c7; color: #d97706; }
+          .badge-low { background: #e0f2fe; color: #0284c7; }
+          .badge-overdue { background: #dc2626; color: white; }
+          .overdue { background: #fef2f2; padding: 8px; border-radius: 6px; margin-bottom: 4px; }
+          .empty { color: #94a3b8; font-style: italic; font-size: 12px; }
+          .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; text-align: center; }
+          @media print { body { padding: 20px; } .stats { grid-template-columns: repeat(5, 1fr); } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="logo">GR</div>
+          <div class="header-text">
+            <h1>Genius Recovery</h1>
+            <p>Executive Director Summary</p>
+          </div>
+        </div>
+        <p class="date">Generated: ${today}</p>
+        
+        <div class="stats">
+          <div class="stat"><div class="stat-value">${pendingTasksList.length}</div><div class="stat-label">Tasks</div></div>
+          <div class="stat"><div class="stat-value">${activeContentList.length}</div><div class="stat-label">In Production</div></div>
+          <div class="stat"><div class="stat-value">${activeGrantsList.length}</div><div class="stat-label">Active Grants</div></div>
+          <div class="stat"><div class="stat-value">${data.partners.length}</div><div class="stat-label">Partners</div></div>
+          <div class="stat"><div class="stat-value">${data.donors.length}</div><div class="stat-label">Donors</div></div>
+        </div>
+
+        ${overdueTasksList.length > 0 ? `
+        <div class="section">
+          <div class="section-title">⚠️ Overdue Tasks (${overdueTasksList.length})</div>
+          ${overdueTasksList.map(t => `
+            <div class="item overdue">
+              <div class="item-title">${t.title}</div>
+              <div class="item-meta">
+                <span class="badge badge-overdue">Due: ${new Date(t.due_date).toLocaleDateString()}</span>
+                ${t.notes ? `<span>${t.notes}</span>` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+        ` : ''}
+
+        <div class="section">
+          <div class="section-title">📋 Pending Tasks (${pendingTasksList.length})</div>
+          ${pendingTasksList.length > 0 ? pendingTasksList.slice(0, 10).map(t => `
+            <div class="item">
+              <div class="item-title">${t.title}</div>
+              <div class="item-meta">
+                <span>Due: ${new Date(t.due_date).toLocaleDateString()}</span>
+                <span class="badge badge-${t.priority}">${t.priority}</span>
+              </div>
+            </div>
+          `).join('') : '<p class="empty">No pending tasks</p>'}
+        </div>
+
+        <div class="section">
+          <div class="section-title">🎬 Content In Production (${activeContentList.length})</div>
+          ${activeContentList.length > 0 ? activeContentList.map(c => `
+            <div class="item">
+              <div class="item-title">${c.title}</div>
+              <div class="item-meta">
+                <span>${c.content_type}</span>
+                <span>Status: ${c.status.replace('_', ' ')}</span>
+                ${c.partner_client ? `<span>For: ${c.partner_client}</span>` : ''}
+              </div>
+            </div>
+          `).join('') : '<p class="empty">No active productions</p>'}
+        </div>
+
+        <div class="section">
+          <div class="section-title">💰 Grant Pipeline (${activeGrantsList.length})</div>
+          ${activeGrantsList.length > 0 ? activeGrantsList.map(g => `
+            <div class="item">
+              <div class="item-title">${g.title}</div>
+              <div class="item-meta">
+                <span>${g.funder}</span>
+                <span>${g.amount}</span>
+                <span>Deadline: ${g.deadline}</span>
+                <span class="badge badge-${g.fit}">${g.fit} fit</span>
+              </div>
+            </div>
+          `).join('') : '<p class="empty">No active grants</p>'}
+        </div>
+
+        <div class="section">
+          <div class="section-title">🤝 Active Partners (${activePartners.length})</div>
+          ${activePartners.length > 0 ? activePartners.map(p => `
+            <div class="item">
+              <div class="item-title">${p.name}</div>
+              <div class="item-meta">
+                <span>${p.location}</span>
+                <span>Status: ${p.status}</span>
+              </div>
+            </div>
+          `).join('') : '<p class="empty">No active partners</p>'}
+        </div>
+
+        <div class="section">
+          <div class="section-title">📅 Upcoming Events (${upcomingEventsList.length})</div>
+          ${upcomingEventsList.length > 0 ? upcomingEventsList.map(e => `
+            <div class="item">
+              <div class="item-title">${e.name}</div>
+              <div class="item-meta">
+                <span>${new Date(e.start_date).toLocaleDateString()} - ${new Date(e.end_date).toLocaleDateString()}</span>
+                <span>${e.location}</span>
+              </div>
+            </div>
+          `).join('') : '<p class="empty">No upcoming events</p>'}
+        </div>
+
+        <div class="footer">
+          Genius Recovery • geniusrecovery.org • Generated from ED Dashboard
+        </div>
+      </body>
+      </html>
+    `
+
+    const printWindow = window.open('', '_blank')
+    printWindow.document.write(html)
+    printWindow.document.close()
+    printWindow.onload = () => {
+      printWindow.print()
+    }
   }
 
   if (loading) {
@@ -892,10 +1043,10 @@ export default function Dashboard() {
                 <RefreshCw size={16} /> Refresh
               </button>
               <button
-                onClick={exportData}
+                onClick={exportPDF}
                 className="flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-medium transition-all"
               >
-                <Download size={16} /> Export
+                <Download size={16} /> Export PDF
               </button>
             </div>
           </div>
