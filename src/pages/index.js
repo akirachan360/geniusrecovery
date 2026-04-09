@@ -7,23 +7,20 @@ import {
   TrendingUp, Bookmark, Filter
 } from 'lucide-react'
 
-// RSS Feed URLs - using a CORS proxy for client-side fetching
-const RSS_FEEDS = {
-  policy: [
-    { name: 'SAMHSA', url: 'https://www.samhsa.gov/rss/press-announcements.xml', category: 'policy' },
-    { name: 'HHS', url: 'https://www.hhs.gov/rss/news.xml', category: 'policy' },
-  ],
-  grants: [
-    { name: 'Grants.gov', url: 'https://www.grants.gov/rss/GG_NewOppByCategory.xml', category: 'grants' },
-  ],
-  news: [
-    { name: 'Filter Magazine', url: 'https://filtermag.org/feed/', category: 'news' },
-    { name: 'Addiction Center', url: 'https://www.addictioncenter.com/feed/', category: 'news' },
-  ]
-}
+// Multiple CORS proxies to try
+const CORS_PROXIES = [
+  'https://api.allorigins.win/raw?url=',
+  'https://corsproxy.io/?',
+  'https://api.codetabs.com/v1/proxy?quest='
+]
 
-// CORS proxy for RSS feeds
-const CORS_PROXY = 'https://api.allorigins.win/raw?url='
+// RSS Feed URLs
+const RSS_FEEDS = [
+  { name: 'SAMHSA News', url: 'https://www.samhsa.gov/rss/press-announcements.xml', category: 'policy' },
+  { name: 'HHS News', url: 'https://www.hhs.gov/about/news/rss/index.xml', category: 'policy' },
+  { name: 'Filter Magazine', url: 'https://filtermag.org/feed/', category: 'news' },
+  { name: 'NIH NIDA', url: 'https://nida.nih.gov/rss/news-events.xml', category: 'policy' },
+]
 
 // Status Badge Component
 const StatusBadge = ({ status, type = 'default' }) => {
@@ -102,7 +99,7 @@ const SectionHeader = ({ icon: Icon, title, count, onAdd, collapsed, onToggle })
 // News Feed Item Component
 const NewsFeedItem = ({ item, onSave }) => {
   const date = item.pubDate ? new Date(item.pubDate) : null
-  const isRecent = date && (new Date() - date) < 7 * 24 * 60 * 60 * 1000 // 7 days
+  const isRecent = date && (new Date() - date) < 7 * 24 * 60 * 60 * 1000
   
   return (
     <div className={`p-4 bg-white rounded-lg border border-gray-200 mb-2 animate-fadeIn card-hover ${isRecent ? 'border-l-4 border-l-genius-red' : ''}`}>
@@ -134,7 +131,7 @@ const NewsFeedItem = ({ item, onSave }) => {
         <button
           onClick={() => onSave(item)}
           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          title="Save to tracker"
+          title="Save to Policy Updates"
         >
           <Bookmark size={16} className="text-gray-400 hover:text-genius-red" />
         </button>
@@ -567,18 +564,51 @@ const AddTaskModal = ({ onClose, onAdd }) => {
 
 // Parse RSS XML
 const parseRSS = (xml, source, category) => {
-  const parser = new DOMParser()
-  const doc = parser.parseFromString(xml, 'text/xml')
-  const items = doc.querySelectorAll('item')
-  
-  return Array.from(items).slice(0, 10).map(item => ({
-    title: item.querySelector('title')?.textContent || '',
-    link: item.querySelector('link')?.textContent || '',
-    description: item.querySelector('description')?.textContent?.replace(/<[^>]*>/g, '').slice(0, 200) || '',
-    pubDate: item.querySelector('pubDate')?.textContent || '',
-    source,
-    category
-  }))
+  try {
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(xml, 'text/xml')
+    
+    // Check for parse errors
+    const parseError = doc.querySelector('parsererror')
+    if (parseError) {
+      console.error('XML parse error for', source)
+      return []
+    }
+    
+    const items = doc.querySelectorAll('item')
+    
+    return Array.from(items).slice(0, 10).map(item => ({
+      title: item.querySelector('title')?.textContent?.trim() || '',
+      link: item.querySelector('link')?.textContent?.trim() || '',
+      description: (item.querySelector('description')?.textContent || '').replace(/<[^>]*>/g, '').trim().slice(0, 200),
+      pubDate: item.querySelector('pubDate')?.textContent || '',
+      source,
+      category
+    })).filter(item => item.title && item.link)
+  } catch (e) {
+    console.error('Error parsing RSS from', source, e)
+    return []
+  }
+}
+
+// Fetch with proxy fallback
+const fetchWithProxy = async (url, proxies) => {
+  for (const proxy of proxies) {
+    try {
+      const response = await fetch(proxy + encodeURIComponent(url), {
+        headers: { 'Accept': 'application/rss+xml, application/xml, text/xml' }
+      })
+      if (response.ok) {
+        const text = await response.text()
+        if (text.includes('<rss') || text.includes('<feed') || text.includes('<item')) {
+          return text
+        }
+      }
+    } catch (e) {
+      console.log(`Proxy ${proxy} failed, trying next...`)
+    }
+  }
+  return null
 }
 
 // Main Dashboard Component
@@ -597,6 +627,7 @@ export default function Dashboard() {
   })
   const [newsFeed, setNewsFeed] = useState([])
   const [newsLoading, setNewsLoading] = useState(false)
+  const [newsError, setNewsError] = useState(null)
   const [newsFilter, setNewsFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [collapsed, setCollapsed] = useState({})
@@ -609,32 +640,34 @@ export default function Dashboard() {
   }, [])
 
   useEffect(() => {
-    if (activeTab === 'news') {
+    if (activeTab === 'news' && newsFeed.length === 0) {
       loadNewsFeed()
     }
   }, [activeTab])
 
   const loadNewsFeed = async () => {
     setNewsLoading(true)
+    setNewsError(null)
     const allItems = []
+    let successCount = 0
     
-    const allFeeds = [
-      ...RSS_FEEDS.policy,
-      ...RSS_FEEDS.grants,
-      ...RSS_FEEDS.news
-    ]
-    
-    for (const feed of allFeeds) {
+    for (const feed of RSS_FEEDS) {
       try {
-        const response = await fetch(CORS_PROXY + encodeURIComponent(feed.url))
-        if (response.ok) {
-          const xml = await response.text()
+        const xml = await fetchWithProxy(feed.url, CORS_PROXIES)
+        if (xml) {
           const items = parseRSS(xml, feed.name, feed.category)
-          allItems.push(...items)
+          if (items.length > 0) {
+            allItems.push(...items)
+            successCount++
+          }
         }
       } catch (error) {
         console.error(`Error fetching ${feed.name}:`, error)
       }
+    }
+    
+    if (successCount === 0) {
+      setNewsError('Unable to load news feeds. This may be due to network restrictions. Try refreshing or check back later.')
     }
     
     // Sort by date, newest first
@@ -728,13 +761,12 @@ export default function Dashboard() {
   }
 
   const saveNewsItem = async (item) => {
-    // Save to policy_updates table
     try {
       const newItem = {
         title: item.title,
         description: item.description,
         priority: 'medium',
-        date: new Date(item.pubDate).toISOString().split('T')[0],
+        date: item.pubDate ? new Date(item.pubDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
         link: item.link,
         action_items: []
       }
@@ -745,6 +777,7 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error('Error saving:', error)
+      alert('Error saving item')
     }
   }
 
@@ -886,7 +919,7 @@ export default function Dashboard() {
           
           {activeTab === 'news' && (
             <>
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   <Rss size={20} className="text-genius-red" />
                   <span className="font-semibold text-gray-900">News Feed</span>
@@ -901,12 +934,12 @@ export default function Dashboard() {
                   >
                     <option value="all">All News</option>
                     <option value="policy">Policy</option>
-                    <option value="grants">Grants</option>
                     <option value="news">Industry News</option>
                   </select>
                   <button
                     onClick={loadNewsFeed}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-genius-red text-white rounded-md text-sm font-medium hover:bg-genius-red-dark transition-colors"
+                    disabled={newsLoading}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-genius-red text-white rounded-md text-sm font-medium hover:bg-genius-red-dark transition-colors disabled:opacity-50"
                   >
                     <RefreshCw size={14} className={newsLoading ? 'animate-spin' : ''} /> Refresh
                   </button>
@@ -914,20 +947,38 @@ export default function Dashboard() {
               </div>
               
               {newsLoading ? (
-                <div className="text-center py-8">
-                  <RefreshCw size={24} className="text-genius-red animate-spin mx-auto" />
-                  <p className="mt-2 text-sm text-gray-500">Loading news feeds...</p>
+                <div className="text-center py-12">
+                  <RefreshCw size={32} className="text-genius-red animate-spin mx-auto" />
+                  <p className="mt-3 text-sm text-gray-500">Loading news feeds...</p>
+                  <p className="mt-1 text-xs text-gray-400">This may take a few seconds</p>
+                </div>
+              ) : newsError ? (
+                <div className="text-center py-12">
+                  <AlertTriangle size={32} className="text-amber-500 mx-auto" />
+                  <p className="mt-3 text-sm text-gray-600">{newsError}</p>
+                  <button
+                    onClick={loadNewsFeed}
+                    className="mt-4 px-4 py-2 bg-genius-red text-white rounded-lg text-sm font-medium hover:bg-genius-red-dark"
+                  >
+                    Try Again
+                  </button>
                 </div>
               ) : filteredNews.length > 0 ? (
                 <div>
                   {filteredNews.map((item, i) => (
-                    <NewsFeedItem key={i} item={item} onSave={saveNewsItem} />
+                    <NewsFeedItem key={`${item.source}-${i}`} item={item} onSave={saveNewsItem} />
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8">
+                <div className="text-center py-12">
                   <Rss size={32} className="text-gray-300 mx-auto" />
-                  <p className="mt-2 text-sm text-gray-500">No news items found. Try refreshing.</p>
+                  <p className="mt-3 text-sm text-gray-500">No news items found.</p>
+                  <button
+                    onClick={loadNewsFeed}
+                    className="mt-4 px-4 py-2 bg-genius-red text-white rounded-lg text-sm font-medium hover:bg-genius-red-dark"
+                  >
+                    Load News Feeds
+                  </button>
                 </div>
               )}
             </>
