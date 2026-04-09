@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { 
-  Search, Plus, ExternalLink, Calendar, DollarSign, Users, Mic, 
+  Plus, ExternalLink, Calendar, DollarSign, Users, Mic, 
   MapPin, CheckCircle, Clock, AlertTriangle, ChevronDown, ChevronRight, 
-  Edit2, Trash2, Save, X, RefreshCw, Download, Menu, Bell
+  Trash2, RefreshCw, Download, Video, UserCheck, Newspaper, Heart
 } from 'lucide-react'
 
 // Status Badge Component
@@ -27,6 +27,28 @@ const StatusBadge = ({ status, type = 'default' }) => {
     registered: { bg: 'bg-green-100', color: 'text-green-800', label: 'Registered' },
     attending: { bg: 'bg-blue-100', color: 'text-blue-800', label: 'Attending' },
     scheduled: { bg: 'bg-green-100', color: 'text-green-800', label: 'Scheduled' },
+    // Content statuses
+    ideation: { bg: 'bg-gray-100', color: 'text-gray-700', label: 'Ideation' },
+    pre_production: { bg: 'bg-amber-100', color: 'text-amber-800', label: 'Pre-Prod' },
+    production: { bg: 'bg-blue-100', color: 'text-blue-800', label: 'Production' },
+    post_production: { bg: 'bg-purple-100', color: 'text-purple-800', label: 'Post-Prod' },
+    review: { bg: 'bg-amber-100', color: 'text-amber-800', label: 'Review' },
+    published: { bg: 'bg-green-100', color: 'text-green-800', label: 'Published' },
+    // Expert availability
+    available: { bg: 'bg-green-100', color: 'text-green-800', label: 'Available' },
+    busy: { bg: 'bg-amber-100', color: 'text-amber-800', label: 'Busy' },
+    unavailable: { bg: 'bg-red-100', color: 'text-red-800', label: 'Unavailable' },
+    unknown: { bg: 'bg-gray-100', color: 'text-gray-700', label: 'Unknown' },
+    // Press statuses
+    interested: { bg: 'bg-amber-100', color: 'text-amber-800', label: 'Interested' },
+    confirmed: { bg: 'bg-green-100', color: 'text-green-800', label: 'Confirmed' },
+    declined: { bg: 'bg-red-100', color: 'text-red-800', label: 'Declined' },
+    // Donor statuses
+    cultivating: { bg: 'bg-amber-100', color: 'text-amber-800', label: 'Cultivating' },
+    asked: { bg: 'bg-blue-100', color: 'text-blue-800', label: 'Asked' },
+    committed: { bg: 'bg-green-100', color: 'text-green-800', label: 'Committed' },
+    received: { bg: 'bg-green-100', color: 'text-green-800', label: 'Received' },
+    lapsed: { bg: 'bg-gray-100', color: 'text-gray-700', label: 'Lapsed' },
   }
   const config = configs[status] || configs.low
   return (
@@ -267,6 +289,141 @@ const PolicyItem = ({ policy }) => (
   </div>
 )
 
+// Content Pipeline Item Component
+const ContentItem = ({ content, onUpdate }) => (
+  <div className="p-4 bg-white rounded-lg border border-gray-200 mb-2 animate-fadeIn card-hover">
+    <div className="flex justify-between items-start gap-4">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1 flex-wrap">
+          <span className="font-semibold text-sm text-gray-900">{content.title}</span>
+          <span className="px-2 py-0.5 bg-purple-100 text-purple-800 rounded text-xs font-medium uppercase">{content.content_type}</span>
+        </div>
+        {content.partner_client && <div className="text-sm text-gray-500 mb-1">For: {content.partner_client}</div>}
+        {content.description && <div className="text-xs text-gray-600 mb-1">{content.description}</div>}
+        <div className="flex flex-wrap gap-2 text-xs text-gray-500">
+          {content.platform && <span>Platform: {content.platform}</span>}
+          {content.due_date && <span>Due: {new Date(content.due_date).toLocaleDateString()}</span>}
+        </div>
+        {content.notes && <div className="text-xs text-amber-600 mt-1">{content.notes}</div>}
+      </div>
+      <select
+        value={content.status}
+        onChange={(e) => onUpdate({ ...content, status: e.target.value })}
+        className="px-2 py-1 text-xs border border-gray-200 rounded bg-white cursor-pointer"
+      >
+        <option value="ideation">Ideation</option>
+        <option value="pre_production">Pre-Production</option>
+        <option value="production">Production</option>
+        <option value="post_production">Post-Production</option>
+        <option value="review">Review</option>
+        <option value="published">Published</option>
+      </select>
+    </div>
+  </div>
+)
+
+// Expert Item Component
+const ExpertItem = ({ expert, onUpdate }) => (
+  <div className="p-4 bg-white rounded-lg border border-gray-200 mb-2 animate-fadeIn card-hover">
+    <div className="flex justify-between items-start gap-4">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1 flex-wrap">
+          <span className="font-semibold text-sm text-gray-900">{expert.name}</span>
+          <StatusBadge status={expert.availability} />
+        </div>
+        <div className="text-sm text-gray-500 mb-1">{expert.expertise}</div>
+        {expert.organization && <div className="text-xs text-gray-600 mb-1">{expert.organization}</div>}
+        <div className="flex flex-wrap gap-2 text-xs text-gray-500">
+          {expert.location && <span className="flex items-center gap-1"><MapPin size={10} />{expert.location}</span>}
+          {expert.contact_email && <span className="text-genius-red">{expert.contact_email}</span>}
+        </div>
+        {expert.past_collaborations && <div className="text-xs text-gray-500 mt-1">Past work: {expert.past_collaborations}</div>}
+        {expert.notes && <div className="text-xs text-gray-600 mt-1">{expert.notes}</div>}
+      </div>
+      <select
+        value={expert.availability}
+        onChange={(e) => onUpdate({ ...expert, availability: e.target.value })}
+        className="px-2 py-1 text-xs border border-gray-200 rounded bg-white cursor-pointer"
+      >
+        <option value="available">Available</option>
+        <option value="busy">Busy</option>
+        <option value="unavailable">Unavailable</option>
+        <option value="unknown">Unknown</option>
+      </select>
+    </div>
+  </div>
+)
+
+// Press Item Component
+const PressItem = ({ press, onUpdate }) => (
+  <div className="p-4 bg-white rounded-lg border border-gray-200 mb-2 animate-fadeIn card-hover">
+    <div className="flex justify-between items-start gap-4">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1 flex-wrap">
+          <span className="font-semibold text-sm text-gray-900">{press.outlet}</span>
+          <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-medium uppercase">{press.coverage_type}</span>
+        </div>
+        {press.contact_name && <div className="text-sm text-gray-500 mb-1">Contact: {press.contact_name}</div>}
+        {press.topic && <div className="text-xs text-gray-600 mb-1">Topic: {press.topic}</div>}
+        {press.contact_email && <div className="text-xs text-genius-red">{press.contact_email}</div>}
+        {press.notes && <div className="text-xs text-gray-500 mt-1">{press.notes}</div>}
+        {press.link && (
+          <a href={press.link} target="_blank" rel="noopener noreferrer" className="text-xs text-genius-red hover:underline flex items-center gap-1 mt-1">
+            <ExternalLink size={10} /> View Coverage
+          </a>
+        )}
+      </div>
+      <select
+        value={press.status}
+        onChange={(e) => onUpdate({ ...press, status: e.target.value })}
+        className="px-2 py-1 text-xs border border-gray-200 rounded bg-white cursor-pointer"
+      >
+        <option value="prospect">Prospect</option>
+        <option value="pitched">Pitched</option>
+        <option value="interested">Interested</option>
+        <option value="confirmed">Confirmed</option>
+        <option value="published">Published</option>
+        <option value="declined">Declined</option>
+      </select>
+    </div>
+  </div>
+)
+
+// Donor Item Component
+const DonorItem = ({ donor, onUpdate }) => (
+  <div className="p-4 bg-white rounded-lg border border-gray-200 mb-2 animate-fadeIn card-hover">
+    <div className="flex justify-between items-start gap-4">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1 flex-wrap">
+          <span className="font-semibold text-sm text-gray-900">{donor.name}</span>
+          <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded text-xs font-medium uppercase">{donor.donor_type}</span>
+        </div>
+        {donor.contact_name && <div className="text-sm text-gray-500 mb-1">{donor.contact_name}</div>}
+        <div className="flex flex-wrap gap-3 text-xs">
+          {donor.amount_potential && <span className="text-green-600 font-medium">Potential: {donor.amount_potential}</span>}
+          {donor.amount_given && <span className="text-gray-600">Given: {donor.amount_given}</span>}
+        </div>
+        {donor.last_contact && <div className="text-xs text-gray-500 mt-1">Last contact: {new Date(donor.last_contact).toLocaleDateString()}</div>}
+        {donor.next_action && <div className="text-xs text-amber-600 mt-1">Next: {donor.next_action}</div>}
+        {donor.notes && <div className="text-xs text-gray-500 mt-1">{donor.notes}</div>}
+      </div>
+      <select
+        value={donor.status}
+        onChange={(e) => onUpdate({ ...donor, status: e.target.value })}
+        className="px-2 py-1 text-xs border border-gray-200 rounded bg-white cursor-pointer"
+      >
+        <option value="prospect">Prospect</option>
+        <option value="cultivating">Cultivating</option>
+        <option value="asked">Asked</option>
+        <option value="committed">Committed</option>
+        <option value="received">Received</option>
+        <option value="declined">Declined</option>
+        <option value="lapsed">Lapsed</option>
+      </select>
+    </div>
+  </div>
+)
+
 // Add Task Modal
 const AddTaskModal = ({ onClose, onAdd }) => {
   const [task, setTask] = useState({
@@ -283,9 +440,7 @@ const AddTaskModal = ({ onClose, onAdd }) => {
       <div className="bg-white rounded-xl p-6 w-full max-w-md animate-fadeIn">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold">Add Task</h3>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
-            <X size={20} />
-          </button>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded text-gray-500">✕</button>
         </div>
         <div className="flex flex-col gap-3">
           <input
@@ -319,7 +474,9 @@ const AddTaskModal = ({ onClose, onAdd }) => {
             <option value="partners">Partners</option>
             <option value="media">Media</option>
             <option value="events">Events</option>
-            <option value="policy">Policy</option>
+            <option value="content">Content</option>
+            <option value="donors">Donors</option>
+            <option value="press">Press</option>
             <option value="general">General</option>
           </select>
           <input
@@ -354,7 +511,11 @@ export default function Dashboard() {
     partners: [],
     media: [],
     events: [],
-    tasks: []
+    tasks: [],
+    content: [],
+    experts: [],
+    press: [],
+    donors: []
   })
   const [loading, setLoading] = useState(true)
   const [collapsed, setCollapsed] = useState({})
@@ -376,13 +537,17 @@ export default function Dashboard() {
     }
     
     try {
-      const [policyRes, grantsRes, partnersRes, mediaRes, eventsRes, tasksRes, settingsRes] = await Promise.all([
+      const [policyRes, grantsRes, partnersRes, mediaRes, eventsRes, tasksRes, contentRes, expertsRes, pressRes, donorsRes, settingsRes] = await Promise.all([
         supabase.from('policy_updates').select('*').order('date', { ascending: false }),
         supabase.from('grants').select('*').order('deadline', { ascending: true }),
         supabase.from('partners').select('*').order('name'),
         supabase.from('media').select('*').order('name'),
         supabase.from('events').select('*').order('start_date'),
         supabase.from('tasks').select('*').order('due_date'),
+        supabase.from('content_pipeline').select('*').order('created_at', { ascending: false }),
+        supabase.from('experts').select('*').order('name'),
+        supabase.from('press').select('*').order('created_at', { ascending: false }),
+        supabase.from('donors').select('*').order('name'),
         supabase.from('settings').select('*').eq('key', 'last_updated').single()
       ])
 
@@ -392,7 +557,11 @@ export default function Dashboard() {
         partners: partnersRes.data || [],
         media: mediaRes.data || [],
         events: eventsRes.data || [],
-        tasks: tasksRes.data || []
+        tasks: tasksRes.data || [],
+        content: contentRes.data || [],
+        experts: expertsRes.data || [],
+        press: pressRes.data || [],
+        donors: donorsRes.data || []
       })
       
       if (settingsRes.data?.value?.timestamp) {
@@ -408,11 +577,11 @@ export default function Dashboard() {
     try {
       const { error } = await supabase.from(table).update(item).eq('id', item.id)
       if (!error) {
+        const tableKey = table === 'content_pipeline' ? 'content' : table
         setData(prev => ({
           ...prev,
-          [table]: prev[table].map(i => i.id === item.id ? item : i)
+          [tableKey]: prev[tableKey].map(i => i.id === item.id ? item : i)
         }))
-        // Update last_updated timestamp
         await supabase.from('settings').upsert({ key: 'last_updated', value: { timestamp: new Date().toISOString() } })
       }
     } catch (error) {
@@ -477,20 +646,25 @@ export default function Dashboard() {
     const days = Math.ceil((new Date(e.start_date) - new Date()) / (1000 * 60 * 60 * 24))
     return days >= 0 && days <= 90
   })
+  const activeContent = data.content.filter(c => c.status !== 'published')
 
   const tabs = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'grants', label: 'Grants' },
-    { id: 'partners', label: 'Partners' },
-    { id: 'media', label: 'Media' },
-    { id: 'events', label: 'Events' }
+    { id: 'overview', label: 'Overview', icon: CheckCircle },
+    { id: 'content', label: 'Content', icon: Video },
+    { id: 'grants', label: 'Grants', icon: DollarSign },
+    { id: 'partners', label: 'Partners', icon: Users },
+    { id: 'donors', label: 'Donors', icon: Heart },
+    { id: 'media', label: 'Media', icon: Mic },
+    { id: 'press', label: 'Press', icon: Newspaper },
+    { id: 'experts', label: 'Experts', icon: UserCheck },
+    { id: 'events', label: 'Events', icon: Calendar }
   ]
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-gradient-to-br from-genius-red to-genius-red-dark text-white">
-        <div className="max-w-5xl mx-auto px-4 py-5">
+        <div className="max-w-6xl mx-auto px-4 py-5">
           <div className="flex justify-between items-start mb-3">
             <div>
               <h1 className="text-2xl font-bold">Genius Recovery</h1>
@@ -519,12 +693,13 @@ export default function Dashboard() {
           )}
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-4 gap-2 mt-4">
+          <div className="grid grid-cols-5 gap-2 mt-4">
             {[
               { value: pendingTasks.length, label: 'Tasks' },
+              { value: activeContent.length, label: 'In Production' },
               { value: upcomingGrants.length, label: 'Grants' },
               { value: data.partners.length, label: 'Partners' },
-              { value: upcomingEvents.length, label: 'Events' }
+              { value: data.donors.length, label: 'Donors' }
             ].map((stat, i) => (
               <div key={i} className="bg-white/15 p-3 rounded-lg text-center">
                 <div className="text-xl font-bold">{stat.value}</div>
@@ -535,7 +710,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <div className="max-w-5xl mx-auto px-4 py-4">
+      <div className="max-w-6xl mx-auto px-4 py-4">
         {/* Alert Banner */}
         {overdueTasks.length > 0 && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-center gap-2.5">
@@ -547,24 +722,25 @@ export default function Dashboard() {
         )}
 
         {/* Tab Navigation */}
-        <div className="flex gap-1 overflow-x-auto pb-2">
+        <div className="flex gap-1 overflow-x-auto pb-2 mb-1">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2.5 rounded-t-lg text-sm font-medium whitespace-nowrap transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
                 activeTab === tab.id 
                   ? 'bg-genius-red text-white' 
                   : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
               }`}
             >
+              <tab.icon size={14} />
               {tab.label}
             </button>
           ))}
         </div>
 
         {/* Content Area */}
-        <div className="bg-white rounded-b-lg rounded-tr-lg border border-gray-200 p-4">
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
           {activeTab === 'overview' && (
             <>
               <SectionHeader
@@ -588,6 +764,20 @@ export default function Dashboard() {
                   {pendingTasks.length === 0 && (
                     <p className="text-sm text-gray-500 text-center py-4">No pending tasks</p>
                   )}
+                </div>
+              )}
+
+              <SectionHeader
+                icon={Video}
+                title="Content In Production"
+                count={activeContent.length}
+                collapsed={collapsed.content}
+                onToggle={() => toggleCollapse('content')}
+              />
+              {!collapsed.content && (
+                <div className="mb-6">
+                  {activeContent.map(c => <ContentItem key={c.id} content={c} onUpdate={(item) => updateItem('content_pipeline', item)} />)}
+                  {activeContent.length === 0 && <p className="text-sm text-gray-500 text-center py-4">No active productions</p>}
                 </div>
               )}
 
@@ -624,6 +814,16 @@ export default function Dashboard() {
             </>
           )}
 
+          {activeTab === 'content' && (
+            <>
+              <SectionHeader icon={Video} title="Content Pipeline" count={data.content.length} collapsed={false} onToggle={() => {}} />
+              <div>
+                {data.content.map(c => <ContentItem key={c.id} content={c} onUpdate={(item) => updateItem('content_pipeline', item)} />)}
+                {data.content.length === 0 && <p className="text-sm text-gray-500 text-center py-8">No content in pipeline. Add items in Supabase Table Editor.</p>}
+              </div>
+            </>
+          )}
+
           {activeTab === 'grants' && (
             <>
               <SectionHeader icon={DollarSign} title="Grant Pipeline" count={data.grants.length} collapsed={false} onToggle={() => {}} />
@@ -642,11 +842,41 @@ export default function Dashboard() {
             </>
           )}
 
+          {activeTab === 'donors' && (
+            <>
+              <SectionHeader icon={Heart} title="Donors & Funders" count={data.donors.length} collapsed={false} onToggle={() => {}} />
+              <div>
+                {data.donors.map(d => <DonorItem key={d.id} donor={d} onUpdate={(item) => updateItem('donors', item)} />)}
+                {data.donors.length === 0 && <p className="text-sm text-gray-500 text-center py-8">No donors yet. Add items in Supabase Table Editor.</p>}
+              </div>
+            </>
+          )}
+
           {activeTab === 'media' && (
             <>
               <SectionHeader icon={Mic} title="Media Opportunities" count={data.media.length} collapsed={false} onToggle={() => {}} />
               <div>
                 {data.media.map(m => <MediaItem key={m.id} media={m} onUpdate={(item) => updateItem('media', item)} />)}
+              </div>
+            </>
+          )}
+
+          {activeTab === 'press' && (
+            <>
+              <SectionHeader icon={Newspaper} title="Press & Coverage" count={data.press.length} collapsed={false} onToggle={() => {}} />
+              <div>
+                {data.press.map(p => <PressItem key={p.id} press={p} onUpdate={(item) => updateItem('press', item)} />)}
+                {data.press.length === 0 && <p className="text-sm text-gray-500 text-center py-8">No press items yet. Add items in Supabase Table Editor.</p>}
+              </div>
+            </>
+          )}
+
+          {activeTab === 'experts' && (
+            <>
+              <SectionHeader icon={UserCheck} title="Expert Network" count={data.experts.length} collapsed={false} onToggle={() => {}} />
+              <div>
+                {data.experts.map(e => <ExpertItem key={e.id} expert={e} onUpdate={(item) => updateItem('experts', item)} />)}
+                {data.experts.length === 0 && <p className="text-sm text-gray-500 text-center py-8">No experts yet. Add items in Supabase Table Editor.</p>}
               </div>
             </>
           )}
