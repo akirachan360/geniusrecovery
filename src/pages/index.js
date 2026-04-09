@@ -3,8 +3,27 @@ import { supabase } from '../lib/supabase'
 import { 
   Plus, ExternalLink, Calendar, DollarSign, Users, Mic, 
   MapPin, CheckCircle, Clock, AlertTriangle, ChevronDown, ChevronRight, 
-  Trash2, RefreshCw, Download, Video, UserCheck, Newspaper, Heart
+  Trash2, RefreshCw, Download, Video, UserCheck, Newspaper, Heart, Rss, 
+  TrendingUp, Bookmark, Filter
 } from 'lucide-react'
+
+// RSS Feed URLs - using a CORS proxy for client-side fetching
+const RSS_FEEDS = {
+  policy: [
+    { name: 'SAMHSA', url: 'https://www.samhsa.gov/rss/press-announcements.xml', category: 'policy' },
+    { name: 'HHS', url: 'https://www.hhs.gov/rss/news.xml', category: 'policy' },
+  ],
+  grants: [
+    { name: 'Grants.gov', url: 'https://www.grants.gov/rss/GG_NewOppByCategory.xml', category: 'grants' },
+  ],
+  news: [
+    { name: 'Filter Magazine', url: 'https://filtermag.org/feed/', category: 'news' },
+    { name: 'Addiction Center', url: 'https://www.addictioncenter.com/feed/', category: 'news' },
+  ]
+}
+
+// CORS proxy for RSS feeds
+const CORS_PROXY = 'https://api.allorigins.win/raw?url='
 
 // Status Badge Component
 const StatusBadge = ({ status, type = 'default' }) => {
@@ -27,28 +46,27 @@ const StatusBadge = ({ status, type = 'default' }) => {
     registered: { bg: 'bg-green-100', color: 'text-green-800', label: 'Registered' },
     attending: { bg: 'bg-blue-100', color: 'text-blue-800', label: 'Attending' },
     scheduled: { bg: 'bg-green-100', color: 'text-green-800', label: 'Scheduled' },
-    // Content statuses
     ideation: { bg: 'bg-gray-100', color: 'text-gray-700', label: 'Ideation' },
     pre_production: { bg: 'bg-amber-100', color: 'text-amber-800', label: 'Pre-Prod' },
     production: { bg: 'bg-blue-100', color: 'text-blue-800', label: 'Production' },
     post_production: { bg: 'bg-purple-100', color: 'text-purple-800', label: 'Post-Prod' },
     review: { bg: 'bg-amber-100', color: 'text-amber-800', label: 'Review' },
     published: { bg: 'bg-green-100', color: 'text-green-800', label: 'Published' },
-    // Expert availability
     available: { bg: 'bg-green-100', color: 'text-green-800', label: 'Available' },
     busy: { bg: 'bg-amber-100', color: 'text-amber-800', label: 'Busy' },
     unavailable: { bg: 'bg-red-100', color: 'text-red-800', label: 'Unavailable' },
     unknown: { bg: 'bg-gray-100', color: 'text-gray-700', label: 'Unknown' },
-    // Press statuses
     interested: { bg: 'bg-amber-100', color: 'text-amber-800', label: 'Interested' },
     confirmed: { bg: 'bg-green-100', color: 'text-green-800', label: 'Confirmed' },
     declined: { bg: 'bg-red-100', color: 'text-red-800', label: 'Declined' },
-    // Donor statuses
     cultivating: { bg: 'bg-amber-100', color: 'text-amber-800', label: 'Cultivating' },
     asked: { bg: 'bg-blue-100', color: 'text-blue-800', label: 'Asked' },
     committed: { bg: 'bg-green-100', color: 'text-green-800', label: 'Committed' },
     received: { bg: 'bg-green-100', color: 'text-green-800', label: 'Received' },
     lapsed: { bg: 'bg-gray-100', color: 'text-gray-700', label: 'Lapsed' },
+    policy: { bg: 'bg-purple-100', color: 'text-purple-800', label: 'Policy' },
+    grants: { bg: 'bg-green-100', color: 'text-green-800', label: 'Grant' },
+    news: { bg: 'bg-blue-100', color: 'text-blue-800', label: 'News' },
   }
   const config = configs[status] || configs.low
   return (
@@ -65,7 +83,7 @@ const SectionHeader = ({ icon: Icon, title, count, onAdd, collapsed, onToggle })
     className="flex items-center justify-between p-3 bg-gray-50 rounded-lg mb-3 cursor-pointer select-none hover:bg-gray-100 transition-colors"
   >
     <div className="flex items-center gap-2.5">
-      {collapsed ? <ChevronRight size={18} className="text-gray-500" /> : <ChevronDown size={18} className="text-gray-500" />}
+      {collapsed !== undefined && (collapsed ? <ChevronRight size={18} className="text-gray-500" /> : <ChevronDown size={18} className="text-gray-500" />)}
       <Icon size={20} className="text-genius-red" />
       <span className="font-semibold text-gray-900">{title}</span>
       <span className="bg-genius-red text-white px-2 py-0.5 rounded-full text-xs font-medium">{count}</span>
@@ -80,6 +98,50 @@ const SectionHeader = ({ icon: Icon, title, count, onAdd, collapsed, onToggle })
     )}
   </div>
 )
+
+// News Feed Item Component
+const NewsFeedItem = ({ item, onSave }) => {
+  const date = item.pubDate ? new Date(item.pubDate) : null
+  const isRecent = date && (new Date() - date) < 7 * 24 * 60 * 60 * 1000 // 7 days
+  
+  return (
+    <div className={`p-4 bg-white rounded-lg border border-gray-200 mb-2 animate-fadeIn card-hover ${isRecent ? 'border-l-4 border-l-genius-red' : ''}`}>
+      <div className="flex justify-between items-start gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <StatusBadge status={item.category} />
+            <span className="text-xs text-gray-400">{item.source}</span>
+            {isRecent && <span className="px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-xs font-medium">NEW</span>}
+          </div>
+          <a 
+            href={item.link} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="font-semibold text-sm text-gray-900 hover:text-genius-red transition-colors line-clamp-2"
+          >
+            {item.title}
+          </a>
+          {item.description && (
+            <p className="text-xs text-gray-600 mt-1 line-clamp-2">{item.description}</p>
+          )}
+          <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+            {date && <span>{date.toLocaleDateString()}</span>}
+            <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-genius-red hover:underline flex items-center gap-1">
+              Read more <ExternalLink size={10} />
+            </a>
+          </div>
+        </div>
+        <button
+          onClick={() => onSave(item)}
+          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          title="Save to tracker"
+        >
+          <Bookmark size={16} className="text-gray-400 hover:text-genius-red" />
+        </button>
+      </div>
+    </div>
+  )
+}
 
 // Task Item Component
 const TaskItem = ({ task, onUpdate, onDelete }) => {
@@ -503,6 +565,22 @@ const AddTaskModal = ({ onClose, onAdd }) => {
   )
 }
 
+// Parse RSS XML
+const parseRSS = (xml, source, category) => {
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(xml, 'text/xml')
+  const items = doc.querySelectorAll('item')
+  
+  return Array.from(items).slice(0, 10).map(item => ({
+    title: item.querySelector('title')?.textContent || '',
+    link: item.querySelector('link')?.textContent || '',
+    description: item.querySelector('description')?.textContent?.replace(/<[^>]*>/g, '').slice(0, 200) || '',
+    pubDate: item.querySelector('pubDate')?.textContent || '',
+    source,
+    category
+  }))
+}
+
 // Main Dashboard Component
 export default function Dashboard() {
   const [data, setData] = useState({
@@ -517,6 +595,9 @@ export default function Dashboard() {
     press: [],
     donors: []
   })
+  const [newsFeed, setNewsFeed] = useState([])
+  const [newsLoading, setNewsLoading] = useState(false)
+  const [newsFilter, setNewsFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [collapsed, setCollapsed] = useState({})
   const [showAddTask, setShowAddTask] = useState(false)
@@ -526,6 +607,41 @@ export default function Dashboard() {
   useEffect(() => {
     loadData()
   }, [])
+
+  useEffect(() => {
+    if (activeTab === 'news') {
+      loadNewsFeed()
+    }
+  }, [activeTab])
+
+  const loadNewsFeed = async () => {
+    setNewsLoading(true)
+    const allItems = []
+    
+    const allFeeds = [
+      ...RSS_FEEDS.policy,
+      ...RSS_FEEDS.grants,
+      ...RSS_FEEDS.news
+    ]
+    
+    for (const feed of allFeeds) {
+      try {
+        const response = await fetch(CORS_PROXY + encodeURIComponent(feed.url))
+        if (response.ok) {
+          const xml = await response.text()
+          const items = parseRSS(xml, feed.name, feed.category)
+          allItems.push(...items)
+        }
+      } catch (error) {
+        console.error(`Error fetching ${feed.name}:`, error)
+      }
+    }
+    
+    // Sort by date, newest first
+    allItems.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate))
+    setNewsFeed(allItems)
+    setNewsLoading(false)
+  }
 
   const loadData = async () => {
     setLoading(true)
@@ -611,6 +727,27 @@ export default function Dashboard() {
     }
   }
 
+  const saveNewsItem = async (item) => {
+    // Save to policy_updates table
+    try {
+      const newItem = {
+        title: item.title,
+        description: item.description,
+        priority: 'medium',
+        date: new Date(item.pubDate).toISOString().split('T')[0],
+        link: item.link,
+        action_items: []
+      }
+      const { data: savedItem, error } = await supabase.from('policy_updates').insert([newItem]).select().single()
+      if (!error && savedItem) {
+        setData(prev => ({ ...prev, policy: [savedItem, ...prev.policy] }))
+        alert('Saved to Policy Updates!')
+      }
+    } catch (error) {
+      console.error('Error saving:', error)
+    }
+  }
+
   const toggleCollapse = (section) => {
     setCollapsed(prev => ({ ...prev, [section]: !prev[section] }))
   }
@@ -648,8 +785,13 @@ export default function Dashboard() {
   })
   const activeContent = data.content.filter(c => c.status !== 'published')
 
+  const filteredNews = newsFilter === 'all' 
+    ? newsFeed 
+    : newsFeed.filter(item => item.category === newsFilter)
+
   const tabs = [
     { id: 'overview', label: 'Overview', icon: CheckCircle },
+    { id: 'news', label: 'News Feed', icon: Rss },
     { id: 'content', label: 'Content', icon: Video },
     { id: 'grants', label: 'Grants', icon: DollarSign },
     { id: 'partners', label: 'Partners', icon: Users },
@@ -741,6 +883,56 @@ export default function Dashboard() {
 
         {/* Content Area */}
         <div className="bg-white rounded-lg border border-gray-200 p-4">
+          
+          {activeTab === 'news' && (
+            <>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Rss size={20} className="text-genius-red" />
+                  <span className="font-semibold text-gray-900">News Feed</span>
+                  <span className="bg-genius-red text-white px-2 py-0.5 rounded-full text-xs font-medium">{filteredNews.length}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Filter size={14} className="text-gray-400" />
+                  <select
+                    value={newsFilter}
+                    onChange={(e) => setNewsFilter(e.target.value)}
+                    className="px-2 py-1 text-sm border border-gray-200 rounded bg-white cursor-pointer"
+                  >
+                    <option value="all">All News</option>
+                    <option value="policy">Policy</option>
+                    <option value="grants">Grants</option>
+                    <option value="news">Industry News</option>
+                  </select>
+                  <button
+                    onClick={loadNewsFeed}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-genius-red text-white rounded-md text-sm font-medium hover:bg-genius-red-dark transition-colors"
+                  >
+                    <RefreshCw size={14} className={newsLoading ? 'animate-spin' : ''} /> Refresh
+                  </button>
+                </div>
+              </div>
+              
+              {newsLoading ? (
+                <div className="text-center py-8">
+                  <RefreshCw size={24} className="text-genius-red animate-spin mx-auto" />
+                  <p className="mt-2 text-sm text-gray-500">Loading news feeds...</p>
+                </div>
+              ) : filteredNews.length > 0 ? (
+                <div>
+                  {filteredNews.map((item, i) => (
+                    <NewsFeedItem key={i} item={item} onSave={saveNewsItem} />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Rss size={32} className="text-gray-300 mx-auto" />
+                  <p className="mt-2 text-sm text-gray-500">No news items found. Try refreshing.</p>
+                </div>
+              )}
+            </>
+          )}
+          
           {activeTab === 'overview' && (
             <>
               <SectionHeader
